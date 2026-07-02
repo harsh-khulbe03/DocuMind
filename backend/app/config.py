@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     confidence_threshold: float = 0.1
 
+    # Limits / abuse protection
+    max_upload_mb: int = 10          # reject PDFs larger than this
+    max_documents: int = 50          # total documents kept (storage guard)
+    upload_rate_per_hour: int = 20   # uploads per client IP per hour
+    query_rate_per_minute: int = 30  # queries per client IP per minute
+
     # Ingestion
     chunk_max_tokens: int = 512
     upload_dir: Path = Path("uploads")

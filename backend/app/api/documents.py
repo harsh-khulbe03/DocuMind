@@ -9,9 +9,12 @@ from app.indexing.lexical_store import LexicalStore
 from app.indexing.vector_store import VectorStore
 from app.ingestion.pipeline import run_ingestion
 from app.models import DeleteResponse, DocumentListResponse, DocumentStatus, IngestJobResponse
+from app.rate_limit import rate_limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_upload_limit = rate_limiter(get_settings().upload_rate_per_hour, 3600, "upload")
 
 
 def _doc_id_from_file(filename: str, content_hash: str) -> str:
@@ -25,13 +28,28 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     settings: Settings = Depends(get_settings),
+    _: None = Depends(_upload_limit),
 ):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
+    lexical = LexicalStore(settings)
+    if len(lexical.list_documents()) >= settings.max_documents:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Document limit reached ({settings.max_documents}). Delete a document first.",
+        )
+
     content = await file.read()
     if len(content) == 0:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    max_bytes = settings.max_upload_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum is {settings.max_upload_mb} MB.",
+        )
 
     # Derive stable doc_id from content hash (idempotent re-uploads)
     content_hash = hashlib.sha256(content).hexdigest()
@@ -43,7 +61,6 @@ async def upload_document(
         await f.write(content)
 
     # Register in SQLite before background task starts
-    lexical = LexicalStore(settings)
     lexical.create_document(doc_id, file.filename)
 
     # Kick off ingestion in the background

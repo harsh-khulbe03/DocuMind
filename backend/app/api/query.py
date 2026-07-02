@@ -9,6 +9,7 @@ from app.config import Settings, get_settings
 from app.generation.answer import get_answer, is_insufficient, stream_answer
 from app.llm.factory import get_llm
 from app.models import QueryRequest, QueryResponse, SourceChunk
+from app.rate_limit import rate_limiter
 from app.retrieval.fusion import reciprocal_rank_fusion
 from app.retrieval.lexical import LexicalRetriever
 from app.retrieval.reranker import rerank
@@ -16,6 +17,8 @@ from app.retrieval.vector import VectorRetriever
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_query_limit = rate_limiter(get_settings().query_rate_per_minute, 60, "query")
 
 
 async def _retrieve_and_rerank(
@@ -75,6 +78,7 @@ async def _retrieve_and_rerank(
 async def query(
     request: QueryRequest,
     settings: Settings = Depends(get_settings),
+    _: None = Depends(_query_limit),
 ):
     """Non-streaming query endpoint. Returns full answer + sources."""
     sources, top_score = await _retrieve_and_rerank(request, settings)
@@ -105,6 +109,7 @@ async def query(
 async def query_stream(
     request: QueryRequest,
     settings: Settings = Depends(get_settings),
+    _: None = Depends(_query_limit),
 ):
     """
     Streaming query endpoint using Server-Sent Events.

@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { Upload, FileText } from "lucide-react";
 
+// Keep in sync with backend MAX_UPLOAD_MB. Backend still enforces the real limit.
+const MAX_UPLOAD_MB = 10;
+
 interface Props {
   onUpload: (file: File) => void;
   uploading: boolean;
@@ -14,6 +17,10 @@ export function UploadZone({ onUpload, uploading }: Props) {
     (file: File) => {
       if (!file.name.toLowerCase().endsWith(".pdf")) {
         alert("Only PDF files are supported.");
+        return;
+      }
+      if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+        alert(`File too large. Maximum is ${MAX_UPLOAD_MB} MB.`);
         return;
       }
       onUpload(file);
@@ -61,7 +68,7 @@ export function UploadZone({ onUpload, uploading }: Props) {
           <>
             <Upload className="w-8 h-8" />
             <p className="text-sm font-medium">Drop a PDF here or click to browse</p>
-            <p className="text-xs text-gray-400">Only PDF files are supported</p>
+            <p className="text-xs text-gray-400">PDF only · max {MAX_UPLOAD_MB} MB</p>
           </>
         )}
       </div>
