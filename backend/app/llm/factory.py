@@ -10,6 +10,14 @@ def get_llm(settings: Settings) -> LLMProvider:
             model=settings.ollama_model,
         )
 
+    if settings.llm_provider == "groq":
+        from app.llm.groq import GroqProvider
+        return GroqProvider(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+            base_url=settings.groq_base_url,
+        )
+
     if settings.llm_provider == "bedrock":
         from app.llm.bedrock import BedrockProvider
         return BedrockProvider(

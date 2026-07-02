@@ -21,7 +21,10 @@ logger = logging.getLogger(__name__)
 class VectorStore:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.client = AsyncQdrantClient(url=settings.qdrant_url)
+        self.client = AsyncQdrantClient(
+            url=settings.qdrant_url,
+            api_key=settings.qdrant_api_key or None,
+        )
         self._embedder = Embedder(settings)
 
     async def ensure_collection(self) -> None:

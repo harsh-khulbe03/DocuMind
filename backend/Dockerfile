@@ -20,9 +20,13 @@ RUN uv sync --no-dev --no-install-project
 # Copy application code
 COPY app/ ./app/
 
-# Create directories for persistent data
-RUN mkdir -p uploads data
+# Writable dirs for uploads, SQLite, and model caches. World-writable because
+# Hugging Face Spaces runs the container as an arbitrary non-root UID.
+ENV HF_HOME=/app/.cache
+RUN mkdir -p uploads data .cache && chmod -R 777 uploads data .cache
 
-EXPOSE 8000
+# HF Spaces expects the app on 7860; compose overrides PORT + command for local dev.
+ENV PORT=7860
+EXPOSE 7860
 
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

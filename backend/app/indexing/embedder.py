@@ -17,7 +17,13 @@ EMBEDDING_DIMS = {
     "mxbai-embed-large": 1024,
     # Bedrock
     "amazon.titan-embed-text-v2:0": 1024,
+    # Local sentence-transformers
+    "sentence-transformers/all-MiniLM-L6-v2": 384,
+    "BAAI/bge-small-en-v1.5": 384,
 }
+
+# Cached across requests — loading the model is expensive.
+_local_model = None
 
 
 class Embedder:
@@ -25,9 +31,23 @@ class Embedder:
         self.settings = settings
 
     async def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        if self.settings.llm_provider == "ollama":
+        if self.settings.embedding_provider == "local":
+            return await self._embed_local(texts)
+        if self.settings.embedding_provider == "ollama":
             return await self._embed_ollama(texts)
         return await self._embed_bedrock(texts)
+
+    async def _embed_local(self, texts: list[str]) -> list[list[float]]:
+        import asyncio
+
+        def _run() -> list[list[float]]:
+            global _local_model
+            if _local_model is None:
+                from sentence_transformers import SentenceTransformer
+                _local_model = SentenceTransformer(self.settings.local_embedding_model)
+            return _local_model.encode(texts, normalize_embeddings=True).tolist()
+
+        return await asyncio.get_event_loop().run_in_executor(None, _run)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
     async def _embed_ollama(self, texts: list[str]) -> list[list[float]]:
@@ -69,7 +89,9 @@ class Embedder:
         return await asyncio.gather(*[loop.run_in_executor(None, _embed_one, t) for t in texts])
 
     def get_dimension(self) -> int:
-        if self.settings.llm_provider == "ollama":
+        if self.settings.embedding_provider == "local":
+            model = self.settings.local_embedding_model
+        elif self.settings.embedding_provider == "ollama":
             model = self.settings.ollama_embedding_model
         else:
             model = self.settings.bedrock_embedding_model_id

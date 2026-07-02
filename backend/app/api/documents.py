@@ -77,11 +77,8 @@ async def delete_document(doc_id: str, settings: Settings = Depends(get_settings
     lexical = LexicalStore(settings)
     vector = VectorStore(settings)
 
-    doc = lexical.get_document(doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
-
-    # Delete from both indices
+    # Idempotent: purge from every store even if the SQLite record is missing
+    # (e.g. after an ephemeral-storage restart that left orphaned Qdrant vectors).
     await vector.delete_by_doc_id(doc_id)
     lexical.delete_document(doc_id)
 

@@ -9,12 +9,24 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # LLM
-    llm_provider: Literal["ollama", "bedrock"] = "ollama"
+    llm_provider: Literal["ollama", "bedrock", "groq"] = "ollama"
+
+    # Embeddings ("local" runs sentence-transformers in-process — free, no service)
+    embedding_provider: Literal["ollama", "bedrock", "local"] = "ollama"
+    local_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
     # Ollama
     ollama_base_url: str = "http://host.docker.internal:11434"
     ollama_model: str = "llama3.2"
     ollama_embedding_model: str = "nomic-embed-text"
+
+    # Groq (free hosted LLM, OpenAI-compatible API)
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+
+    # CORS: comma-separated origins, or "*" for any
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     # Bedrock
     aws_access_key_id: str = ""
@@ -25,6 +37,7 @@ class Settings(BaseSettings):
 
     # Qdrant
     qdrant_url: str = "http://localhost:6333"
+    qdrant_api_key: str = ""  # required for Qdrant Cloud
     qdrant_collection: str = "documind"
 
     # Retrieval
