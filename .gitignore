@@ -1,0 +1,6 @@
+.env
+backend/.venv
+backend/uploads
+backend/data
+TROUBLESHOOTING.md
+__pycache__/
