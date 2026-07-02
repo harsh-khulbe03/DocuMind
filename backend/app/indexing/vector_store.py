@@ -7,6 +7,7 @@ from qdrant_client.models import (
     Filter,
     MatchAny,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -41,6 +42,17 @@ class VectorStore:
                 self.settings.qdrant_collection,
                 dim,
             )
+
+        # Qdrant Cloud requires a payload index to filter/delete by doc_id.
+        # Idempotent: no-op if the index already exists.
+        try:
+            await self.client.create_payload_index(
+                collection_name=self.settings.qdrant_collection,
+                field_name="doc_id",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+        except Exception:
+            pass
 
     async def upsert(self, chunks: list[Chunk], embeddings: list[list[float]]) -> None:
         points = [
