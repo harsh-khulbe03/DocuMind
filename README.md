@@ -1,19 +1,22 @@
 # DocuMind
 
 Upload PDFs. Ask questions. Get cited, source-grounded answers.
-Hybrid retrieval (semantic + BM25) with a cross-encoder reranker. Supports Ollama (local) and AWS Bedrock.
+Hybrid retrieval (semantic + BM25) with a cross-encoder reranker. Runs fully local with Ollama, or free in the cloud with Groq.
+
+**Live demo:** frontend on Vercel, backend on Hugging Face Spaces, vectors in Qdrant Cloud, chat via Groq.
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
 | Backend | Python 3.12, FastAPI, Docling, LangChain text-splitters |
-| Vector index | Qdrant |
+| Vector index | Qdrant (local) / Qdrant Cloud (deployed) |
 | Lexical index | SQLite FTS5 (BM25) |
+| Embeddings | Ollama `nomic-embed-text` (local) / sentence-transformers `all-MiniLM-L6-v2` (deployed) / AWS Bedrock |
 | Reranker | sentence-transformers cross-encoder |
-| LLM | Ollama (local) or AWS Bedrock |
+| LLM | Ollama (local) / Groq (free hosted) / AWS Bedrock |
 | Frontend | React 18, Vite, TailwindCSS, shadcn/ui |
-| Infra | Docker Compose |
+| Infra | Docker Compose (local); Vercel + Hugging Face Spaces + Qdrant Cloud (deployed) |
 
 ## Quick start
 
@@ -34,13 +37,22 @@ cp .env.example .env
 # Edit .env if needed — defaults work for Ollama out of the box
 ```
 
-For Bedrock, set in `.env`:
+Provider options in `.env`:
+
 ```
+# Groq (free hosted LLM) — key at https://console.groq.com
+LLM_PROVIDER=groq
+GROQ_API_KEY=...
+EMBEDDING_PROVIDER=local      # runs sentence-transformers in-process
+
+# AWS Bedrock
 LLM_PROVIDER=bedrock
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_REGION=us-east-1
 ```
+
+`LLM_PROVIDER` (chat) and `EMBEDDING_PROVIDER` are independent: e.g. Groq for chat with `local` embeddings.
 
 ### 3. Start
 
@@ -63,7 +75,7 @@ docker compose up --build
 
 ```
 Upload PDF
-  └─► Docling parses pages (OCR if needed)
+  └─► Docling parses pages (text layer; OCR disabled by default)
         └─► RecursiveCharacterTextSplitter produces chunks
               └─► Chunks embedded → Qdrant (vector)
               └─► Chunks indexed → SQLite FTS5 (lexical)
@@ -72,9 +84,22 @@ Query
   └─► Vector search (Qdrant, top 20)  ─┐
   └─► Lexical search (BM25, top 20)   ─┴─► Reciprocal Rank Fusion
                                                 └─► Cross-encoder reranker (top 5)
-                                                      └─► Confidence gate
-                                                            └─► LLM answer (streaming SSE)
+                                                      └─► Grounded LLM answer (streaming SSE),
+                                                          declines when context is insufficient
 ```
+
+## Deployment (free)
+
+Deployed on free tiers with local Ollama swapped for hosted services:
+
+- **Frontend** → Vercel (set `VITE_API_URL` to the backend URL)
+- **Backend** → Hugging Face Spaces (Docker; `LLM_PROVIDER=groq`, `EMBEDDING_PROVIDER=local`)
+- **Vectors** → Qdrant Cloud (free 1 GB cluster)
+- **Chat** → Groq (free API); **embeddings + reranker** run in-process in the backend
+
+Full step-by-step in [DEPLOY.md](DEPLOY.md). Known free-tier limitation: Hugging Face
+Spaces storage is ephemeral, so the SQLite document list and lexical index reset on
+restart (Qdrant vectors persist). See DEPLOY.md for durable-storage options.
 
 ## Development (without Docker)
 
@@ -106,7 +131,7 @@ documind/
 │       ├── ingestion/       # parse → chunk → index
 │       ├── indexing/        # Qdrant + SQLite FTS5 + embedder
 │       ├── retrieval/       # vector + lexical + RRF + reranker
-│       ├── llm/             # Ollama + Bedrock providers
+│       ├── llm/             # Ollama + Groq + Bedrock providers
 │       ├── generation/      # prompt + answer streaming
 │       └── api/             # FastAPI routers
 └── frontend/
